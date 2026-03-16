@@ -1,0 +1,11 @@
+{
+  "name": "patrickos",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["api", "dashboard"],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=api",
+    "dev:dashboard": "npm run dev --workspace=dashboard",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:dashboard\""
+  }
+}
