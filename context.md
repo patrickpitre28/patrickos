@@ -1,6 +1,6 @@
 # PatrickOS — CONTEXT.md
-**Last updated:** March 2026  
-**Phase:** 2 — Agent API + PatrickOS Dashboard (ready to build)  
+**Last updated:** 2026-03-15
+**Phase:** 2 — Agent API + PatrickOS Dashboard (**scaffolded & API tested**)
 **Repo target:** `~/projects/patrickos/` on Omen (WSL2/Win11)
 
 ---
@@ -17,7 +17,7 @@ The IE dashboard at `~/projects/intelligence-engine` stays completely independen
 
 ---
 
-## Monorepo Structure to Scaffold
+## Monorepo Structure (scaffolded 2026-03-15)
 
 ```
 ~/projects/patrickos/
@@ -114,7 +114,7 @@ Two channels already set up by Patrick. Channel IDs go in `.env`.
 
 ---
 
-## API Endpoints to Build
+## API Endpoints (all implemented & tested 2026-03-15)
 
 **Base:** `http://localhost:3200/api/v1`  
 **Auth:** `Authorization: Bearer <AGENT_API_KEY>` on all routes
@@ -135,9 +135,9 @@ Two channels already set up by Patrick. Channel IDs go in `.env`.
 
 ---
 
-## Dashboard — Tasks View (Phase 2)
+## Dashboard — Tasks View (Phase 2, UI scaffolded 2026-03-15)
 
-The only fully built view in Phase 2. Should show:
+The only fully built view in Phase 2. Shows:
 
 - **Header bar:** PatrickOS logo/wordmark, current date, nav links
 - **Sidebar:** Tasks (active) · Agents · Vault · Briefings (last 3 = "coming soon" stubs)
@@ -218,6 +218,30 @@ DIGEST_EMAIL=patrick@patrickpitre.io
 | Task Management System Design Doc | `3250e68b-cb87-81a6-97c6-ef13ac1e3d89` | https://www.notion.so/3250e68bcb8781a697c6ef13ac1e3d89 |
 | Agent & App Lab | `2dd0e68b-cb87-80ee-8267-d63bf945c79e` | https://www.notion.so/2dd0e68bcb8780ee8267d63bf945c79e |
 | Patrick OS & Execution | `2da0e68b-cb87-8045-bf1a-db39deee049d` | https://www.notion.so/2da0e68bcb8780d9b955fa48538e1c2e |
+
+---
+
+## Current Status (2026-03-15)
+
+### What's done
+- Monorepo scaffolded with npm workspaces (`api/` + `dashboard/`)
+- All API endpoints implemented and tested against live Notion DB (75 tasks returned)
+- Write endpoints verified: create, log (append-only), status update, escalate, complete
+- Input validation working (invalid status returns 400 with valid options)
+- Dashboard shell built with React Router — Tasks view fully wired, 3 stub views routed
+- `.env` populated with Notion token, generated API key, and Telegram bot token
+- Git repo initialized, initial commit `8375f21`
+
+### Discovered during build
+- **Notion `Status` property is type `select`, not `status`.** All Notion API calls use `select` semantics for Status reads/writes/filters. This was caught and fixed during testing.
+- **Telegram Grant channel ID (`8795835361`) returns "chat not found".** The bot token works but the channel ID may need the `-100` prefix or verification from BotFather/getUpdates.
+- **Telegram Petit channel ID (`8670109624`) matches the bot token prefix** — may also need verification.
+
+### What's next
+- Verify/fix Telegram channel IDs so escalation alerts deliver
+- Test dashboard end-to-end (start both API + Vite, confirm Tasks view renders from live data)
+- No Notion schema changes were made
+- No new env vars beyond what was documented
 
 ---
 
