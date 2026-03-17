@@ -1,4 +1,10 @@
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import { Client } from '@notionhq/client';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, '..', '..', '.env') });
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const DB_ID = process.env.NOTION_TASKS_DB_ID;

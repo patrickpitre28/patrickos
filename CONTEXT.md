@@ -1,7 +1,7 @@
 # PatrickOS — CONTEXT.md
-**Last updated:** 2026-03-15
-**Phase:** 2 — Agent API + PatrickOS Dashboard (**scaffolded & API tested**)
-**Repo target:** `~/projects/patrickos/` on Omen (WSL2/Win11)
+**Last updated:** 2026-03-15  
+**Phase:** 3 — Accountability Engine (ready to build)  
+**Repo:** `~/projects/patrickos/` on Omen (WSL2/Win11)
 
 ---
 
@@ -17,7 +17,7 @@ The IE dashboard at `~/projects/intelligence-engine` stays completely independen
 
 ---
 
-## Monorepo Structure (scaffolded 2026-03-15)
+## Monorepo Structure (Built — Phase 2 Complete)
 
 ```
 ~/projects/patrickos/
@@ -35,7 +35,7 @@ The IE dashboard at `~/projects/intelligence-engine` stays completely independen
 │   │   │   └── digest.js       ← /digest/daily, /digest/weekly
 │   │   └── services/
 │   │       ├── notion.js       ← Notion API wrapper (read/write tasks)
-│   │       └── telegram.js     ← send message to Grant or Petit channel
+│   │       └── telegram.js     ← two bot instances (Grant + Petit), route by agent ID
 │   └── ...
 │
 └── dashboard/
@@ -48,7 +48,7 @@ The IE dashboard at `~/projects/intelligence-engine` stays completely independen
         ├── components/
         │   └── Sidebar.jsx     ← nav: Tasks, Agents, Vault, Briefings
         └── views/
-            ├── Tasks.jsx       ← BUILT OUT in Phase 2
+            ├── Tasks.jsx       ← BUILT OUT — live
             ├── Agents.jsx      ← stub ("Coming soon")
             ├── Vault.jsx       ← stub
             └── Briefings.jsx   ← stub
@@ -114,7 +114,7 @@ Two channels already set up by Patrick. Channel IDs go in `.env`.
 
 ---
 
-## API Endpoints (all implemented & tested 2026-03-15)
+## API Endpoints to Build
 
 **Base:** `http://localhost:3200/api/v1`  
 **Auth:** `Authorization: Bearer <AGENT_API_KEY>` on all routes
@@ -135,9 +135,9 @@ Two channels already set up by Patrick. Channel IDs go in `.env`.
 
 ---
 
-## Dashboard — Tasks View (Phase 2, UI scaffolded 2026-03-15)
+## Dashboard — Tasks View (Phase 2)
 
-The only fully built view in Phase 2. Shows:
+The only fully built view in Phase 2. Should show:
 
 - **Header bar:** PatrickOS logo/wordmark, current date, nav links
 - **Sidebar:** Tasks (active) · Agents · Vault · Briefings (last 3 = "coming soon" stubs)
@@ -167,10 +167,11 @@ NOTION_TASKS_DB_ID=2dd0e68bcb87808eb573f3dcdde4b809
 AGENT_API_KEY=                   # Bearer token agents use to authenticate
 PORT=3200
 
-# Telegram
-TELEGRAM_BOT_TOKEN=              # From BotFather
-TELEGRAM_GRANT_CHANNEL_ID=       # Patrick to fill in
-TELEGRAM_PETIT_CHANNEL_ID=       # Patrick to fill in
+# Telegram — two separate bots, one per channel
+TELEGRAM_GRANT_BOT_TOKEN=        # BotFather token for the Grant bot
+TELEGRAM_PETIT_BOT_TOKEN=        # BotFather token for the Petit bot
+TELEGRAM_GRANT_CHANNEL_ID=       # Grant channel ID (numeric, with -100 prefix)
+TELEGRAM_PETIT_CHANNEL_ID=       # Petit channel ID (numeric, with -100 prefix)
 
 # Email (Phase 3 — leave blank for now)
 SMTP_HOST=
@@ -188,7 +189,7 @@ DIGEST_EMAIL=patrick@patrickpitre.io
 
 2. **Agents never touch Notion directly.** All Notion reads and writes go through `services/notion.js`. No agent or route file should import the Notion client directly.
 
-3. **Telegram routing is always by agent ID.** The `telegram.js` service takes `(message, agentId)` and resolves the correct channel internally. Routes never reference channel IDs directly.
+3. **Telegram routing uses two separate bot instances.** `telegram.js` initializes two bots at startup — `grantBot` (using `TELEGRAM_GRANT_BOT_TOKEN`) and `petitBot` (using `TELEGRAM_PETIT_BOT_TOKEN`). The `sendAlert(message, agentId)` function selects the correct bot + channel pair by agent ID. Routes never reference tokens or channel IDs directly.
 
 4. **Dashboard calls API only.** No Notion SDK in the dashboard. If the dashboard needs data not currently exposed by the API, add an endpoint first.
 
@@ -201,13 +202,87 @@ DIGEST_EMAIL=patrick@patrickpitre.io
 
 ---
 
-## What's NOT in Scope for Phase 2
+## What's NOT in Scope for Phase 3
 
-- Cron jobs / scheduled notifications (Phase 3)
-- Email delivery (Phase 3)
 - PostgreSQL / Context Vault sync (Phase 4)
 - IE dashboard migration into PatrickOS (deferred, decision pending)
 - ChatGPT→Notion push automation (open question, not yet designed)
+
+---
+
+## Current Status (2026-03-16)
+
+### Phase 2 — What's done
+- Monorepo scaffolded with npm workspaces (`api/` + `dashboard/`)
+- All 9 API endpoints implemented and tested against live Notion DB (75 tasks returned)
+- Write endpoints verified: create, log (append-only), status update, escalate, complete
+- Input validation working (invalid status returns 400 with valid options)
+- Dashboard shell built with React Router — Tasks view fully wired, 3 stub views routed
+- `.env` populated with Notion token, generated API key, and Telegram bot token
+- Git repo initialized, initial commit `8375f21`
+
+### Discovered during Phase 2 build
+- **Notion `Status` property is type `select`, not `status`.** All Notion API calls use `select` semantics for Status reads/writes/filters. Already fixed in the codebase.
+- **Telegram:** Two separate bot tokens required (one per channel). Both bots connected and verified ✅. `TELEGRAM_GRANT_BOT_TOKEN` and `TELEGRAM_PETIT_BOT_TOKEN` populated in `.env`. Channel IDs confirmed.
+
+### Phase 3 blocker
+~~Verify Telegram channel IDs~~ — **Both bots connected and verified. ✅ Phase 3 is unblocked.**
+
+---
+
+## Phase 3 — Accountability Engine (BUILD THIS NOW)
+
+A new file: `api/src/jobs/` — cron jobs that run as a separate process alongside the API, sharing the same `.env`.
+
+### Files to create
+
+```
+api/src/jobs/
+├── index.js          ← starts all cron jobs (run with: node src/jobs/index.js)
+├── dailyDigest.js    ← 8AM CST daily → email
+├── overdueAlert.js   ← every 4 hours → Telegram (Grant + Petit channels)
+└── weeklyReport.js   ← Friday 3PM CST → email + create Notion page
+```
+
+### Job specs
+
+**dailyDigest.js** — cron: `0 8 * * *` (CST = UTC-6, so `0 14 * * *` UTC)
+- Calls `GET /api/v1/digest/daily` internally
+- Formats HTML email with sections: Must-Do today, In Progress, Overdue count, Agent activity summary
+- Sends to `patrick@patrickpitre.io` via Nodemailer + Google Workspace SMTP
+- Subject: `PatrickOS Daily Brief — [Day, Date]`
+
+**overdueAlert.js** — cron: `0 */4 * * *`
+- Calls `GET /api/v1/tasks/overdue` internally
+- Groups results by agent → routes to correct Telegram channel
+- Grant channel: tasks assigned to grant, claude-code, ChatGPT, Notion AI
+- Petit channel: tasks assigned to Petit
+- Only sends if there are overdue tasks (silent if none)
+- Message format: `⚠️ Overdue Tasks\n[task name] · [domain] · [days overdue]d`
+
+**weeklyReport.js** — cron: `0 21 * * 5` (Friday 3PM CST = 9PM UTC)
+- Calls `GET /api/v1/digest/weekly` internally
+- Sends formatted HTML email to `patrick@patrickpitre.io`
+- Subject: `PatrickOS Weekly Review — Week of [Date]`
+- Also creates a Notion page under the Weekly OS Log DB as a record
+- Notion page title: `Weekly Review — [Week of Date]`
+- Notion parent: Weekly OS Log DB (`2da0e68b-cb87-8071-a160-000b62073621`)
+
+### Email setup (Nodemailer)
+- Transport: Google Workspace SMTP (`smtp.gmail.com`, port 587, STARTTLS)
+- Auth: `SMTP_USER` + `SMTP_PASS` (app password, not account password)
+- From: `PatrickOS <patrick@patrickpitre.io>`
+
+### Running jobs
+Jobs run as a separate Node process — not imported into the API server:
+```bash
+# In one terminal
+node api/src/index.js          # API server
+
+# In another terminal  
+node api/src/jobs/index.js     # Cron jobs
+```
+Later: use PM2 to manage both processes on Omen.
 
 ---
 
@@ -218,30 +293,6 @@ DIGEST_EMAIL=patrick@patrickpitre.io
 | Task Management System Design Doc | `3250e68b-cb87-81a6-97c6-ef13ac1e3d89` | https://www.notion.so/3250e68bcb8781a697c6ef13ac1e3d89 |
 | Agent & App Lab | `2dd0e68b-cb87-80ee-8267-d63bf945c79e` | https://www.notion.so/2dd0e68bcb8780ee8267d63bf945c79e |
 | Patrick OS & Execution | `2da0e68b-cb87-8045-bf1a-db39deee049d` | https://www.notion.so/2da0e68bcb8780d9b955fa48538e1c2e |
-
----
-
-## Current Status (2026-03-15)
-
-### What's done
-- Monorepo scaffolded with npm workspaces (`api/` + `dashboard/`)
-- All API endpoints implemented and tested against live Notion DB (75 tasks returned)
-- Write endpoints verified: create, log (append-only), status update, escalate, complete
-- Input validation working (invalid status returns 400 with valid options)
-- Dashboard shell built with React Router — Tasks view fully wired, 3 stub views routed
-- `.env` populated with Notion token, generated API key, and Telegram bot token
-- Git repo initialized, initial commit `8375f21`
-
-### Discovered during build
-- **Notion `Status` property is type `select`, not `status`.** All Notion API calls use `select` semantics for Status reads/writes/filters. This was caught and fixed during testing.
-- **Telegram Grant channel ID (`8795835361`) returns "chat not found".** The bot token works but the channel ID may need the `-100` prefix or verification from BotFather/getUpdates.
-- **Telegram Petit channel ID (`8670109624`) matches the bot token prefix** — may also need verification.
-
-### What's next
-- Verify/fix Telegram channel IDs so escalation alerts deliver
-- Test dashboard end-to-end (start both API + Vite, confirm Tasks view renders from live data)
-- No Notion schema changes were made
-- No new env vars beyond what was documented
 
 ---
 

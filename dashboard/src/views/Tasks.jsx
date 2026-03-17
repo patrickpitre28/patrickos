@@ -58,7 +58,9 @@ export default function Tasks() {
   const fetchTasks = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch(`${API_BASE}/tasks`);
+      const res = await fetch(`${API_BASE}/tasks`, {
+        headers: { 'Authorization': `Bearer ${import.meta.env.VITE_API_KEY}` },
+      });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setTasks(await res.json());
     } catch (err) {
