@@ -1,9 +1,5 @@
-import { sendAlert } from '../services/telegram.js';
-
 const API_BASE = `http://localhost:${process.env.PORT || 3200}/api/v1`;
 const API_KEY = process.env.AGENT_API_KEY;
-
-const GRANT_AGENTS = ['grant', 'claude-code', 'ChatGPT', 'Notion AI'];
 
 function daysOverdue(dueDate) {
   const due = new Date(dueDate);
@@ -37,17 +33,5 @@ export async function run() {
     return;
   }
 
-  // Group by channel
-  const grantTasks = tasks.filter((t) => GRANT_AGENTS.includes(t.agentId) || !t.agentId);
-  const petitTasks = tasks.filter((t) => t.agentId === 'Petit');
-
-  if (grantTasks.length > 0) {
-    await sendAlert(formatMessage(grantTasks), 'grant');
-    console.log(`[overdueAlert] Sent ${grantTasks.length} task(s) to Grant channel`);
-  }
-
-  if (petitTasks.length > 0) {
-    await sendAlert(formatMessage(petitTasks), 'Petit');
-    console.log(`[overdueAlert] Sent ${petitTasks.length} task(s) to Petit channel`);
-  }
+  console.log(`[overdueAlert] ${tasks.length} overdue task(s) found.`);
 }

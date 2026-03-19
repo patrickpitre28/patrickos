@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import * as notion from '../services/notion.js';
-import { sendAlert } from '../services/telegram.js';
 
 const router = Router();
 
@@ -78,11 +77,6 @@ router.post('/:id/escalate', async (req, res) => {
     if (!reason) return res.status(400).json({ error: 'reason is required' });
 
     const page = await notion.escalateTask(req.params.id, reason);
-
-    // Send Telegram alert routed by agent ID
-    const agentId = page.agentId || 'unknown';
-    await sendAlert(`🚨 Escalation: ${page.task}\nReason: ${reason}`, agentId);
-
     res.json(page);
   } catch (err) {
     console.error('POST /tasks/:id/escalate error:', err);

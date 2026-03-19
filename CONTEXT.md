@@ -10,7 +10,7 @@
 
 A monorepo containing two things:
 
-1. **`api/`** — Node.js/Express Agent API (port 3200). The sole interface agents use to interact with the Notion Tasks DB. Wraps the Notion REST API, enforces append-only execution logging, handles Telegram notifications, and exposes digest endpoints for cron jobs.
+1. **`api/`** — Node.js/Express Agent API (port 3200). The sole interface agents use to interact with the Notion Tasks DB. Wraps the Notion REST API, enforces append-only execution logging, and exposes digest endpoints for cron jobs.
 
 2. **`dashboard/`** — React/Vite PatrickOS app (port 3201). The long-term home for all PatrickOS tooling. Task Management is the first view. Multi-view shell from day one — `/tasks`, `/agents`, `/vault`, `/briefings` routes stubbed.
 
@@ -35,12 +35,11 @@ The IE dashboard at `~/projects/intelligence-engine` stays completely independen
 │   │   │   ├── tasks.js
 │   │   │   └── digest.js
 │   │   ├── services/
-│   │   │   ├── notion.js       ← Notion API wrapper
-│   │   │   └── telegram.js     ← two bot instances (grantBot + petitBot)
+│   │   │   └── notion.js       ← Notion API wrapper
 │   │   └── jobs/
 │   │       ├── index.js        ← starts all cron jobs
 │   │       ├── dailyDigest.js  ← 0 14 * * * UTC (8AM CST) → HTML email
-│   │       ├── overdueAlert.js ← 0 */4 * * * → Telegram, silent if none
+│   │       ├── overdueAlert.js ← 0 */4 * * * → console log, silent if none
 │   │       └── weeklyReport.js ← 0 21 * * 5 UTC (Fri 3PM CST) → email + Notion page
 │
 └── dashboard/
@@ -89,7 +88,7 @@ pm2 startup     # enable autostart (run once if not done)
 
 **Agent properties added Phase 1:**
 - `Assigned To` — Select: Human / Agent / Both
-- `Agent ID` — Select: grant / Petit / claude-code / ChatGPT / Notion AI
+- `Agent ID` — Select: claude-code / ChatGPT / Notion AI
 - `Execution Log` — Rich Text (append-only — never overwrite)
 - `Escalated` — Checkbox
 - `Escalation Notes` — Rich Text
@@ -112,10 +111,6 @@ NOTION_TOKEN=<notion token>
 NOTION_TASKS_DB_ID=2dd0e68bcb87808eb573f3dcdde4b809
 AGENT_API_KEY=<generated key>
 PORT=3200
-TELEGRAM_GRANT_BOT_TOKEN=<grant bot token>
-TELEGRAM_GRANT_CHANNEL_ID=<grant channel id>
-TELEGRAM_PETIT_BOT_TOKEN=<petit bot token>
-TELEGRAM_PETIT_CHANNEL_ID=<petit channel id>
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=patrick@patrickpitre.io
@@ -142,7 +137,7 @@ VITE_API_URL=http://localhost:3200/api/v1
 | POST | /tasks | Create task, lands in Inbox |
 | PATCH | /tasks/:id/status | Update Status |
 | POST | /tasks/:id/log | Append to Execution Log (never overwrites) |
-| POST | /tasks/:id/escalate | Set Escalated=true, trigger Telegram |
+| POST | /tasks/:id/escalate | Set Escalated=true |
 | POST | /tasks/:id/complete | Mark Done, set Completed Date, sync P1s to vault |
 | GET | /tasks/overdue | Past due, not Done/Dropped |
 | GET | /digest/daily | Daily digest payload |
@@ -159,63 +154,15 @@ VITE_API_URL=http://localhost:3200/api/v1
 
 All three jobs running via PM2:
 - **Daily digest** — 8AM CST → email to patrick@patrickpitre.io
-- **Overdue alert** — every 4 hours → Telegram (routed by agent ID)
+- **Overdue alert** — every 4 hours → console log (Telegram removed)
 - **Weekly report** — Friday 3PM CST → email + Notion page
 
-**Telegram routing:**
-- grant, claude-code, ChatGPT, Notion AI → Grant bot → Grant channel
-- Petit → Petit bot → Petit channel
-
----
-
-## Agent Tool Use — Critical Context (2026-03-18)
-
-### OpenClaw tool profile — must be "coding"
-Both Grant (Omen) and Petit (Alien) must have `tools.profile: "coding"` in openclaw.json.
-The default `"messaging"` profile does NOT include bash/exec tools.
-
-```bash
-openclaw config set tools.profile coding
-openclaw gateway restart
-```
-
-### qwen2.5 hallucination behavior — known issue
-qwen2.5 (both 7b and 32b) **hallucinates plausible Notion API responses** when given complex curl commands with JSON bodies. The model has enough Notion training data to generate convincing fakes.
-
-**Symptoms:**
-- Simple commands (echo, date, ls) execute correctly
-- curl to public endpoints with no JSON body executes correctly
-- curl with complex `-d '{...}'` JSON bodies → model fabricates response
-- Fabricated responses always use fake IDs: `1234567890abcdef`, `0987654321fedcba`
-
-**Workaround — pre-built scripts:**
-Write curl commands into named shell scripts that agents call by name.
-
-```bash
-# Create on Omen for Grant
-mkdir -p ~/.openclaw/scripts
-
-cat > ~/.openclaw/scripts/notion-queue.sh << 'EOF'
-#!/bin/bash
-echo '{"filter":{"and":[{"property":"Agent ID","select":{"equals":"grant"}},{"property":"Status","select":{"equals":"Next"}}]}}' > /tmp/notion_q.json
-curl -s -X POST "https://api.notion.com/v1/data_sources/2dd0e68b-cb87-800d-bc95-000b8563868d/query" \
-  -H "Authorization: Bearer <NOTION API TOKEN>" \
-  -H "Notion-Version: 2025-09-03" \
-  -H "Content-Type: application/json" \
-  -d @/tmp/notion_q.json
-EOF
-
-chmod +x ~/.openclaw/scripts/notion-queue.sh
-```
-
-Same pattern for Petit on Alien — change `"grant"` to `"Petit"` in the filter.
+**Telegram:** Removed — Grant and Petit bots deleted.
 
 ### Current practical workflow
-Grant and Petit are not yet reliably autonomous for external HTTP calls. Current state:
 - Patrick creates/views tasks via Notion on phone or via Claude chat
 - PatrickOS dashboard (localhost:3201) provides live task view
 - Accountability Engine fires automatically — no agent involvement needed
-- Grant/Petit require explicit command prompts or pre-built scripts to act
 
 ---
 
