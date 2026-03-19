@@ -108,13 +108,13 @@ pm2 startup     # enable autostart (run once if not done)
 
 **api/.env:**
 ```env
-NOTION_TOKEN=ntn_H38679212875rlvNC7hmicYf5AtHm6NKlHq0aKZBa5T5XJ
+NOTION_TOKEN=<notion token>
 NOTION_TASKS_DB_ID=2dd0e68bcb87808eb573f3dcdde4b809
 AGENT_API_KEY=<generated key>
 PORT=3200
 TELEGRAM_GRANT_BOT_TOKEN=<grant bot token>
 TELEGRAM_GRANT_CHANNEL_ID=<grant channel id>
-TELEGRAM_PETIT_BOT_TOKEN=8670109624:AAH4BuXMjq0Q-2OxhogTcHdZ6JDpA8oRtsk
+TELEGRAM_PETIT_BOT_TOKEN=<petit bot token>
 TELEGRAM_PETIT_CHANNEL_ID=<petit channel id>
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
