@@ -199,7 +199,7 @@ cat > ~/.openclaw/scripts/notion-queue.sh << 'EOF'
 #!/bin/bash
 echo '{"filter":{"and":[{"property":"Agent ID","select":{"equals":"grant"}},{"property":"Status","select":{"equals":"Next"}}]}}' > /tmp/notion_q.json
 curl -s -X POST "https://api.notion.com/v1/data_sources/2dd0e68b-cb87-800d-bc95-000b8563868d/query" \
-  -H "Authorization: Bearer ntn_H38679212875rlvNC7hmicYf5AtHm6NKlHq0aKZBa5T5XJ" \
+  -H "Authorization: Bearer <NOTION API TOKEN>" \
   -H "Notion-Version: 2025-09-03" \
   -H "Content-Type: application/json" \
   -d @/tmp/notion_q.json
