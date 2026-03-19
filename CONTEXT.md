@@ -1,7 +1,8 @@
 # PatrickOS — CONTEXT.md
-**Last updated:** 2026-03-15  
-**Phase:** 3 — Accountability Engine (ready to build)  
+**Last updated:** 2026-03-18
+**Phase:** 3 Complete / 4 Blocked — System operational
 **Repo:** `~/projects/patrickos/` on Omen (WSL2/Win11)
+**GitHub:** https://github.com/patrickpitre28/patrickos (branch: master)
 
 ---
 
@@ -9,297 +10,242 @@
 
 A monorepo containing two things:
 
-1. **`api/`** — Node.js/Express Agent API (port 3200). The sole interface agents use to interact with the Notion Tasks DB. Wraps the Notion MCP, enforces append-only execution logging, handles Telegram notifications, and exposes digest endpoints for cron jobs.
+1. **`api/`** — Node.js/Express Agent API (port 3200). The sole interface agents use to interact with the Notion Tasks DB. Wraps the Notion REST API, enforces append-only execution logging, handles Telegram notifications, and exposes digest endpoints for cron jobs.
 
-2. **`dashboard/`** — React/Vite PatrickOS app (port 3201). The long-term home for all PatrickOS tooling. Task Management is the first view. Multi-view shell from day one — `/tasks`, `/agents`, `/vault`, `/briefings` routes stubbed even before those views are built.
+2. **`dashboard/`** — React/Vite PatrickOS app (port 3201). The long-term home for all PatrickOS tooling. Task Management is the first view. Multi-view shell from day one — `/tasks`, `/agents`, `/vault`, `/briefings` routes stubbed.
 
-The IE dashboard at `~/projects/intelligence-engine` stays completely independent. It may migrate into PatrickOS later or ship standalone — that decision is deferred.
+The IE dashboard at `~/projects/intelligence-engine` stays completely independent.
 
 ---
 
-## Monorepo Structure (Built — Phase 2 Complete)
+## Monorepo Structure (Phase 3 Complete)
 
 ```
 ~/projects/patrickos/
-├── CONTEXT.md                  ← this file
+├── CONTEXT.md
 ├── package.json                ← root (workspaces: ["api", "dashboard"])
-├── .gitignore
+├── .gitignore                  ← **/.env excluded
 │
 ├── api/
-│   ├── package.json
-│   ├── .env                    ← secrets (see env vars below)
+│   ├── package.json            ← includes nodemailer, node-cron; "jobs" script added
+│   ├── .env                    ← all vars populated (see env vars below)
 │   ├── src/
 │   │   ├── index.js            ← Express entry, port 3200
 │   │   ├── routes/
-│   │   │   ├── tasks.js        ← all /tasks endpoints
-│   │   │   └── digest.js       ← /digest/daily, /digest/weekly
-│   │   └── services/
-│   │       ├── notion.js       ← Notion API wrapper (read/write tasks)
-│   │       └── telegram.js     ← two bot instances (Grant + Petit), route by agent ID
-│   └── ...
+│   │   │   ├── tasks.js
+│   │   │   └── digest.js
+│   │   ├── services/
+│   │   │   ├── notion.js       ← Notion API wrapper
+│   │   │   └── telegram.js     ← two bot instances (grantBot + petitBot)
+│   │   └── jobs/
+│   │       ├── index.js        ← starts all cron jobs
+│   │       ├── dailyDigest.js  ← 0 14 * * * UTC (8AM CST) → HTML email
+│   │       ├── overdueAlert.js ← 0 */4 * * * → Telegram, silent if none
+│   │       └── weeklyReport.js ← 0 21 * * 5 UTC (Fri 3PM CST) → email + Notion page
 │
 └── dashboard/
     ├── package.json
+    ├── .env                    ← VITE_API_KEY, VITE_API_URL
     ├── vite.config.js
-    ├── index.html
     └── src/
         ├── main.jsx
         ├── App.jsx             ← shell + React Router
         ├── components/
-        │   └── Sidebar.jsx     ← nav: Tasks, Agents, Vault, Briefings
+        │   └── Sidebar.jsx
         └── views/
-            ├── Tasks.jsx       ← BUILT OUT — live
-            ├── Agents.jsx      ← stub ("Coming soon")
+            ├── Tasks.jsx       ← live
+            ├── Agents.jsx      ← stub
             ├── Vault.jsx       ← stub
             └── Briefings.jsx   ← stub
 ```
 
 ---
 
+## PM2 Processes (all running on Omen)
+
+```bash
+pm2 status
+# Should show 3 processes online:
+# patrickos-api       port 3200
+# patrickos-jobs      cron jobs
+# patrickos-dashboard port 3201
+
+pm2 save        # persist across reboots
+pm2 startup     # enable autostart (run once if not done)
+```
+
+---
+
 ## Notion Tasks DB
 
-**DB URL:** `https://www.notion.so/2dd0e68bcb87808eb573f3dcdde4b809`  
-**Data Source ID:** `2dd0e68b-cb87-800d-bc95-000b8563868d`  
-**Parent page:** Patrick OS & Execution (`2da0e68b-cb87-8045-bf1a-db39deee049d`)
+**DB URL:** https://www.notion.so/2dd0e68bcb87808eb573f3dcdde4b809
+**Data Source ID:** `2dd0e68b-cb87-800d-bc95-000b8563868d`
 
-### Full Schema (as of Phase 1 completion)
+### Current Schema (verified 2026-03-18)
 
-**Original properties (do not modify):**
-- `Task` (title), `Status`, `Priority`, `Context`, `Due Date`, `Completed`, `Completed Date`, `Effort`, `Energy`, `Today Tier`, `Waiting`, `Created`, `Last Edited`
-- Relations: `Content Pipeline`, `Daily Start Log`, `Master Thread List`, `Power Map`, `Weekly OS Log`
-- Formulas: `Days Out`, `Week Of` · Rollups: `Day`, `Week`
-- Buttons: `✓ Complete`, `🔗 Link to Week`
+**Original properties:**
+- `Task` (title), `Status`, `Priority`, `Context`, `Due Date`, `Completed Date`, `Effort`, `Waiting`, `Created`, `Last Edited`, `Days Out` (formula)
+- Button: `✓ Complete`
 
-**New properties added in Phase 1:**
+**Agent properties added Phase 1:**
+- `Assigned To` — Select: Human / Agent / Both
+- `Agent ID` — Select: grant / Petit / claude-code / ChatGPT / Notion AI
+- `Execution Log` — Rich Text (append-only — never overwrite)
+- `Escalated` — Checkbox
+- `Escalation Notes` — Rich Text
+- `Sync to Vault` — Checkbox
+- `Domain` — Select: IBM / Executive Ascent / Creative / PatrickOS / Aporia / Personal / Content / Family
+- `Archived` — Checkbox
 
-| Property | Type | Values |
-|---|---|---|
-| `Assigned To` | Select | Human / Agent / Both |
-| `Agent ID` | Select | grant / Petit / claude-code / ChatGPT / Notion AI |
-| `Execution Log` | Rich Text | Append-only — never overwrite |
-| `Escalated` | Checkbox | true / false |
-| `Escalation Notes` | Rich Text | Reason for escalation |
-| `Sync to Vault` | Checkbox | true / false |
-| `Domain` | Select | IBM / Job Search / Creative / PatrickOS |
+**Status values:** Inbox · Next · In Progress · Waiting · Done · Dropped
+**Priority:** P1 (high) · P2 · P3 (low)
 
-**Status values:** `Inbox` · `Next` · `In Progress` · `Waiting` · `Done` · `Dropped`  
-**Priority:** `P1` (high) · `P2` · `P3` (low)
+**Note:** Domain options have expanded since initial build. `Job Search` was renamed to `Executive Ascent`. New options added: Aporia, Personal, Content, Family. Update any hardcoded Domain references in the codebase.
 
 ---
 
-## Agent Roster
+## Environment Variables
 
-| Agent ID | Machine | Execution Mode |
-|---|---|---|
-| `grant` | Omen (WSL2) | Autonomous via API |
-| `Petit` | Alien (i9-10900F, RTX 3060Ti) | Autonomous via API |
-| `claude-code` | Omen (WSL2) | Autonomous via API |
-| `ChatGPT` | External | Manual entry — Patrick pastes results |
-| `Notion AI` | Notion-internal | Manual entry — Patrick pastes results |
-
-ChatGPT and Notion AI tasks are assigned in Notion by Patrick. Results are manually entered into `Execution Log`. A ChatGPT→Notion push workflow may automate this later — not in scope for Phase 2.
-
----
-
-## Telegram Notification Routing
-
-Two channels already set up by Patrick. Channel IDs go in `.env`.
-
-| Scenario | Channel |
-|---|---|
-| Tasks assigned to `grant`, `claude-code`, `ChatGPT`, `Notion AI` | Grant channel |
-| Tasks assigned to `Petit` | Petit channel |
-| Escalation alerts | Route by agent ID (above) |
-| Overdue alerts | Both channels (one message each, filtered by agent) |
-
----
-
-## API Endpoints to Build
-
-**Base:** `http://localhost:3200/api/v1`  
-**Auth:** `Authorization: Bearer <AGENT_API_KEY>` on all routes
-
-| Method | Path | Notes |
-|---|---|---|
-| `GET` | `/tasks` | Query params: `?agent=`, `?status=`, `?domain=`. Returns array of task objects. |
-| `POST` | `/tasks` | Body: `{ task, priority, domain, agent_id, due_date }`. Creates in Notion with Status=Inbox. |
-| `PATCH` | `/tasks/:id/status` | Body: `{ status }`. Valid values match Notion Status options. |
-| `POST` | `/tasks/:id/log` | Body: `{ entry }`. **Append-only** — prepend timestamp, never overwrite existing log. |
-| `POST` | `/tasks/:id/escalate` | Body: `{ reason }`. Sets Escalated=true, writes Escalation Notes, sends Telegram alert. |
-| `POST` | `/tasks/:id/complete` | Marks Status=Done, sets Completed Date to today. If Priority=P1 also sets Sync to Vault=true. |
-| `GET` | `/tasks/overdue` | Returns tasks where Due Date < today AND Status not in [Done, Dropped]. |
-| `GET` | `/digest/daily` | Returns structured payload: today's tasks by priority, overdue count, per-agent activity. |
-| `GET` | `/digest/weekly` | Returns structured payload: completed/dropped/deferred breakdown, agent stats, vault candidates. |
-
-**Notion page ID format:** Notion MCP returns page URLs like `https://www.notion.so/PAGEID`. Strip the URL to get the bare ID for subsequent calls.
-
----
-
-## Dashboard — Tasks View (Phase 2)
-
-The only fully built view in Phase 2. Should show:
-
-- **Header bar:** PatrickOS logo/wordmark, current date, nav links
-- **Sidebar:** Tasks (active) · Agents · Vault · Briefings (last 3 = "coming soon" stubs)
-- **Task board sections:**
-  - 🔴 Escalated (any escalated=true, not done/dropped)
-  - ⚡ In Progress (status=In Progress)
-  - 📋 Next Up (status=Next, sorted by priority then due date)
-  - 🕐 Overdue (past due date, not done/dropped)
-  - 📥 Inbox (status=Inbox)
-- **Each task card shows:** Task name, Domain badge, Agent ID badge, Priority badge, Due Date, Days Out
-- **Escalated cards** show Escalation Notes inline
-- **Refresh button** + auto-refresh every 60 seconds
-- **Dark theme** — consistent with IE dashboard aesthetic
-
-Dashboard calls `http://localhost:3200/api/v1/tasks` — no direct Notion access.
-
----
-
-## Environment Variables (api/.env)
-
+**api/.env:**
 ```env
-# Notion
-NOTION_TOKEN=                    # Notion integration token
+NOTION_TOKEN=ntn_H38679212875rlvNC7hmicYf5AtHm6NKlHq0aKZBa5T5XJ
 NOTION_TASKS_DB_ID=2dd0e68bcb87808eb573f3dcdde4b809
-
-# Agent API
-AGENT_API_KEY=                   # Bearer token agents use to authenticate
+AGENT_API_KEY=<generated key>
 PORT=3200
-
-# Telegram — two separate bots, one per channel
-TELEGRAM_GRANT_BOT_TOKEN=        # BotFather token for the Grant bot
-TELEGRAM_PETIT_BOT_TOKEN=        # BotFather token for the Petit bot
-TELEGRAM_GRANT_CHANNEL_ID=       # Grant channel ID (numeric, with -100 prefix)
-TELEGRAM_PETIT_CHANNEL_ID=       # Petit channel ID (numeric, with -100 prefix)
-
-# Email (Phase 3 — leave blank for now)
-SMTP_HOST=
-SMTP_PORT=
-SMTP_USER=
-SMTP_PASS=
+TELEGRAM_GRANT_BOT_TOKEN=<grant bot token>
+TELEGRAM_GRANT_CHANNEL_ID=<grant channel id>
+TELEGRAM_PETIT_BOT_TOKEN=8670109624:AAH4BuXMjq0Q-2OxhogTcHdZ6JDpA8oRtsk
+TELEGRAM_PETIT_CHANNEL_ID=<petit channel id>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=patrick@patrickpitre.io
+SMTP_PASS=<google workspace app password — set>
 DIGEST_EMAIL=patrick@patrickpitre.io
 ```
 
----
-
-## Key Architectural Rules
-
-1. **Execution Log is append-only.** The `/log` endpoint must read the current value, prepend `[TIMESTAMP] entry\n` to the existing content, and write the full string back. Never use set/replace on that field alone.
-
-2. **Agents never touch Notion directly.** All Notion reads and writes go through `services/notion.js`. No agent or route file should import the Notion client directly.
-
-3. **Telegram routing uses two separate bot instances.** `telegram.js` initializes two bots at startup — `grantBot` (using `TELEGRAM_GRANT_BOT_TOKEN`) and `petitBot` (using `TELEGRAM_PETIT_BOT_TOKEN`). The `sendAlert(message, agentId)` function selects the correct bot + channel pair by agent ID. Routes never reference tokens or channel IDs directly.
-
-4. **Dashboard calls API only.** No Notion SDK in the dashboard. If the dashboard needs data not currently exposed by the API, add an endpoint first.
-
-5. **PatrickOS shell has routing from day one.** Even stub views get real routes in `App.jsx` (`/agents`, `/vault`, `/briefings`). They render a "Coming Soon" placeholder. Do not skip this.
-
-6. **Port allocation on Omen:**
-   - 3000 — Intelligence Engine dashboard (leave alone)
-   - 3200 — PatrickOS Agent API (this project)
-   - 3201 — PatrickOS Dashboard (this project)
-
----
-
-## What's NOT in Scope for Phase 3
-
-- PostgreSQL / Context Vault sync (Phase 4)
-- IE dashboard migration into PatrickOS (deferred, decision pending)
-- ChatGPT→Notion push automation (open question, not yet designed)
-
----
-
-## Current Status (2026-03-16)
-
-### Phase 2 — What's done
-- Monorepo scaffolded with npm workspaces (`api/` + `dashboard/`)
-- All 9 API endpoints implemented and tested against live Notion DB (75 tasks returned)
-- Write endpoints verified: create, log (append-only), status update, escalate, complete
-- Input validation working (invalid status returns 400 with valid options)
-- Dashboard shell built with React Router — Tasks view fully wired, 3 stub views routed
-- `.env` populated with Notion token, generated API key, and Telegram bot token
-- Git repo initialized, initial commit `8375f21`
-
-### Discovered during Phase 2 build
-- **Notion `Status` property is type `select`, not `status`.** All Notion API calls use `select` semantics for Status reads/writes/filters. Already fixed in the codebase.
-- **Telegram:** Two separate bot tokens required (one per channel). Both bots connected and verified ✅. `TELEGRAM_GRANT_BOT_TOKEN` and `TELEGRAM_PETIT_BOT_TOKEN` populated in `.env`. Channel IDs confirmed.
-
-### Phase 3 blocker
-~~Verify Telegram channel IDs~~ — **Both bots connected and verified. ✅ Phase 3 is unblocked.**
-
----
-
-## Phase 3 — Accountability Engine (BUILD THIS NOW)
-
-A new file: `api/src/jobs/` — cron jobs that run as a separate process alongside the API, sharing the same `.env`.
-
-### Files to create
-
-```
-api/src/jobs/
-├── index.js          ← starts all cron jobs (run with: node src/jobs/index.js)
-├── dailyDigest.js    ← 8AM CST daily → email
-├── overdueAlert.js   ← every 4 hours → Telegram (Grant + Petit channels)
-└── weeklyReport.js   ← Friday 3PM CST → email + create Notion page
+**dashboard/.env:**
+```env
+VITE_API_KEY=<same as AGENT_API_KEY>
+VITE_API_URL=http://localhost:3200/api/v1
 ```
 
-### Job specs
+---
 
-**dailyDigest.js** — cron: `0 8 * * *` (CST = UTC-6, so `0 14 * * *` UTC)
-- Calls `GET /api/v1/digest/daily` internally
-- Formats HTML email with sections: Must-Do today, In Progress, Overdue count, Agent activity summary
-- Sends to `patrick@patrickpitre.io` via Nodemailer + Google Workspace SMTP
-- Subject: `PatrickOS Daily Brief — [Day, Date]`
+## Agent API Endpoints
 
-**overdueAlert.js** — cron: `0 */4 * * *`
-- Calls `GET /api/v1/tasks/overdue` internally
-- Groups results by agent → routes to correct Telegram channel
-- Grant channel: tasks assigned to grant, claude-code, ChatGPT, Notion AI
-- Petit channel: tasks assigned to Petit
-- Only sends if there are overdue tasks (silent if none)
-- Message format: `⚠️ Overdue Tasks\n[task name] · [domain] · [days overdue]d`
+**Base:** `http://localhost:3200/api/v1`
+**Auth:** `Authorization: Bearer <AGENT_API_KEY>`
 
-**weeklyReport.js** — cron: `0 21 * * 5` (Friday 3PM CST = 9PM UTC)
-- Calls `GET /api/v1/digest/weekly` internally
-- Sends formatted HTML email to `patrick@patrickpitre.io`
-- Subject: `PatrickOS Weekly Review — Week of [Date]`
-- Also creates a Notion page under the Weekly OS Log DB as a record
-- Notion page title: `Weekly Review — [Week of Date]`
-- Notion parent: Weekly OS Log DB (`2da0e68b-cb87-8071-a160-000b62073621`)
+| Method | Path | Notes |
+|---|---|---|
+| GET | /tasks | Filters: ?agent=, ?status=, ?domain= |
+| POST | /tasks | Create task, lands in Inbox |
+| PATCH | /tasks/:id/status | Update Status |
+| POST | /tasks/:id/log | Append to Execution Log (never overwrites) |
+| POST | /tasks/:id/escalate | Set Escalated=true, trigger Telegram |
+| POST | /tasks/:id/complete | Mark Done, set Completed Date, sync P1s to vault |
+| GET | /tasks/overdue | Past due, not Done/Dropped |
+| GET | /digest/daily | Daily digest payload |
+| GET | /digest/weekly | Weekly review payload |
 
-### Email setup (Nodemailer)
-- Transport: Google Workspace SMTP (`smtp.gmail.com`, port 587, STARTTLS)
-- Auth: `SMTP_USER` + `SMTP_PASS` (app password, not account password)
-- From: `PatrickOS <patrick@patrickpitre.io>`
+**Bugs fixed during build:**
+- `NOTION_TASKS_DB_ID` had wrong dashes — fixed
+- `dotenv` path resolution failed from monorepo root — fixed with explicit `__dirname` path
+- Dashboard missing `Authorization` header — fixed via `VITE_API_KEY`
 
-### Running jobs
-Jobs run as a separate Node process — not imported into the API server:
+---
+
+## Accountability Engine (Phase 3 — Complete)
+
+All three jobs running via PM2:
+- **Daily digest** — 8AM CST → email to patrick@patrickpitre.io
+- **Overdue alert** — every 4 hours → Telegram (routed by agent ID)
+- **Weekly report** — Friday 3PM CST → email + Notion page
+
+**Telegram routing:**
+- grant, claude-code, ChatGPT, Notion AI → Grant bot → Grant channel
+- Petit → Petit bot → Petit channel
+
+---
+
+## Agent Tool Use — Critical Context (2026-03-18)
+
+### OpenClaw tool profile — must be "coding"
+Both Grant (Omen) and Petit (Alien) must have `tools.profile: "coding"` in openclaw.json.
+The default `"messaging"` profile does NOT include bash/exec tools.
+
 ```bash
-# In one terminal
-node api/src/index.js          # API server
-
-# In another terminal  
-node api/src/jobs/index.js     # Cron jobs
+openclaw config set tools.profile coding
+openclaw gateway restart
 ```
-Later: use PM2 to manage both processes on Omen.
+
+### qwen2.5 hallucination behavior — known issue
+qwen2.5 (both 7b and 32b) **hallucinates plausible Notion API responses** when given complex curl commands with JSON bodies. The model has enough Notion training data to generate convincing fakes.
+
+**Symptoms:**
+- Simple commands (echo, date, ls) execute correctly
+- curl to public endpoints with no JSON body executes correctly
+- curl with complex `-d '{...}'` JSON bodies → model fabricates response
+- Fabricated responses always use fake IDs: `1234567890abcdef`, `0987654321fedcba`
+
+**Workaround — pre-built scripts:**
+Write curl commands into named shell scripts that agents call by name.
+
+```bash
+# Create on Omen for Grant
+mkdir -p ~/.openclaw/scripts
+
+cat > ~/.openclaw/scripts/notion-queue.sh << 'EOF'
+#!/bin/bash
+echo '{"filter":{"and":[{"property":"Agent ID","select":{"equals":"grant"}},{"property":"Status","select":{"equals":"Next"}}]}}' > /tmp/notion_q.json
+curl -s -X POST "https://api.notion.com/v1/data_sources/2dd0e68b-cb87-800d-bc95-000b8563868d/query" \
+  -H "Authorization: Bearer ntn_H38679212875rlvNC7hmicYf5AtHm6NKlHq0aKZBa5T5XJ" \
+  -H "Notion-Version: 2025-09-03" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/notion_q.json
+EOF
+
+chmod +x ~/.openclaw/scripts/notion-queue.sh
+```
+
+Same pattern for Petit on Alien — change `"grant"` to `"Petit"` in the filter.
+
+### Current practical workflow
+Grant and Petit are not yet reliably autonomous for external HTTP calls. Current state:
+- Patrick creates/views tasks via Notion on phone or via Claude chat
+- PatrickOS dashboard (localhost:3201) provides live task view
+- Accountability Engine fires automatically — no agent involvement needed
+- Grant/Petit require explicit command prompts or pre-built scripts to act
+
+---
+
+## Phase 4 — Context Vault Sync (Blocked on IE)
+
+Do not build until IE stabilizes. When ready:
+- Build `api/src/services/vault.js` — PostgreSQL sync
+- Four triggers: Sync to Vault checkbox, Escalated+Overdue, Friday batch, P1 completion
+- Add `/vault` view to PatrickOS dashboard (currently stubbed)
+- PostgreSQL schema in design doc
 
 ---
 
 ## Related Notion Pages
 
-| Page | ID | URL |
-|---|---|---|
-| Task Management System Design Doc | `3250e68b-cb87-81a6-97c6-ef13ac1e3d89` | https://www.notion.so/3250e68bcb8781a697c6ef13ac1e3d89 |
-| Agent & App Lab | `2dd0e68b-cb87-80ee-8267-d63bf945c79e` | https://www.notion.so/2dd0e68bcb8780ee8267d63bf945c79e |
-| Patrick OS & Execution | `2da0e68b-cb87-8045-bf1a-db39deee049d` | https://www.notion.so/2da0e68bcb8780d9b955fa48538e1c2e |
+| Page | URL |
+|---|---|
+| Task Management System Design | https://www.notion.so/3250e68bcb8781a697c6ef13ac1e3d89 |
+| Agent Architecture | https://www.notion.so/3250e68bcb878127a510c362d8124bbc |
+| PatrickOS Infrastructure | https://www.notion.so/3250e68bcb8781c19310ef69bbf517a0 |
+| Three Laws of Agents | https://www.notion.so/3250e68bcb87817b9b47d41d424771e1 |
+| Xidax Reallocation Plan | https://www.notion.so/3250e68bcb878150bb5fd5f1198beb4b |
+| Agent & App Lab | https://www.notion.so/2dd0e68bcb8780ee8267d63bf945c79e |
 
 ---
 
 ## Session Handoff Instructions
 
-At the end of each Claude Code session working on this project:
-1. Update this file with current phase status, any decisions made, and blockers
+At the end of each Claude Code session:
+1. Update this file — phase status, decisions made, blockers
 2. Note any new env vars added
 3. Note any Notion schema changes
-4. Commit alongside the code changes
+4. Commit: `git add -A && git commit -m "..." && git push origin master`
